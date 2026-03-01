@@ -5,6 +5,7 @@ from typing import Optional, Tuple
 import sys
 import os
 import logging
+from pathlib import Path
 
 import numpy as np
 import open3d as o3d
@@ -29,6 +30,37 @@ from dataset.pc_dataset_tools import center2dtopc
 from dataset.grasp import RectGraspGroup
 from models.anchornet import AnchorGraspNet
 from models.localgraspnet import PatchMultiGraspNet
+
+
+def _resolve_checkpoint_path(checkpoint_path: str) -> str:
+    """
+    Resolve checkpoints robustly when launched outside RegionNormalizedGrasp.
+
+    Priority:
+      1) Absolute paths as-is
+      2) Relative to current working directory
+      3) Relative to the installed RegionNormalizedGrasp root (inferred from `dataset` package)
+    """
+    p = Path(checkpoint_path).expanduser()
+    if p.is_absolute() and p.exists():
+        return str(p)
+
+    cwd_p = (Path.cwd() / p).resolve()
+    if cwd_p.exists():
+        return str(cwd_p)
+
+    try:
+        import dataset as _dataset_pkg  # top-level package installed from RegionNormalizedGrasp
+
+        rng_root = Path(_dataset_pkg.__file__).resolve().parent.parent
+        rng_p = (rng_root / p).resolve()
+        if rng_p.exists():
+            return str(rng_p)
+    except Exception:
+        pass
+
+    # Fall back to the original value; torch.load will raise a helpful error.
+    return checkpoint_path
 
 
 def _load_pyrealsense2():
@@ -307,7 +339,7 @@ def main():
     parser = argparse.ArgumentParser()
 
     # Model/checkpoint (defaults match demo.sh)
-    parser.add_argument("--checkpoint-path", default="./RNGNet_realsense_checkpoint")
+    parser.add_argument("--checkpoint-path", default="./checkpoints/realsense")
     parser.add_argument("--center-num", type=int, default=48)
     parser.add_argument("--embed-dim", type=int, default=256)
     parser.add_argument("--patch-size", type=int, default=64, help="local patch grid size")
@@ -352,6 +384,7 @@ def main():
     parser.add_argument("--random-seed", type=int, default=123, help="Random seed")
 
     args = parser.parse_args()
+    args.checkpoint_path = _resolve_checkpoint_path(args.checkpoint_path)
 
     # torch and gpu setting
     np.set_printoptions(precision=4, suppress=True)
