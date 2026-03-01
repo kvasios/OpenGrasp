@@ -1,0 +1,3 @@
+[submodule "OpenGrasp/RegionNormalizedGrasp"]
+	path = OpenGrasp/RegionNormalizedGrasp
+	url = git@github.com:kvasios/RegionNormalizedGrasp.git
